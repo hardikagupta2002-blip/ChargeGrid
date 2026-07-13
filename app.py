@@ -143,7 +143,7 @@ st.markdown("""
   .badge-online  { background: rgba(0,230,118,0.22);  color: #4dffa6; border: 1px solid rgba(0,230,118,0.5); }
   .badge-offline { background: rgba(255,23,68,0.22);  color: #ff7a70; border: 1px solid rgba(255,23,68,0.5); }
   .badge-busy    { background: rgba(255,171,0,0.22);  color: #ffc94d; border: 1px solid rgba(255,171,0,0.5); }
-  .badge-error   { background: rgba(213,0,249,0.22);  color: #f0a6ff; border: 1px solid rgba(213,0,249,0.5); }
+  .badge-error    { background: rgba(213,0,249,0.22);  color: #f0a6ff; border: 1px solid rgba(213,0,249,0.5); }
 
   /* ── Live pulse ── */
   @keyframes pulse { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.5; transform:scale(1.3); } }
@@ -263,10 +263,6 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ── Chart defaults ─────────────────────────────────────────────────────────────
-# NOTE: Plotly does NOT accept the CSS keyword "transparent" for color
-# properties like gridcolor / linecolor / outlinecolor. Use the rgba
-# equivalent "rgba(0,0,0,0)" instead. This is what was causing the
-# "ValueError: Invalid value of type 'builtins.str' ... " crash.
 TRANSPARENT = "rgba(0,0,0,0)"
 
 CHART_LAYOUT = dict(
@@ -282,13 +278,6 @@ CHART_LAYOUT = dict(
 )
 
 def chart_layout(**overrides):
-    """
-    Safely build a layout dict from CHART_LAYOUT plus overrides.
-    FIX: calling fig.update_layout(**CHART_LAYOUT, yaxis=dict(...)) crashes
-    with "got multiple values for keyword argument 'yaxis'" because
-    CHART_LAYOUT already defines 'xaxis'/'yaxis'. This helper merges those
-    nested dicts instead of colliding on the keyword.
-    """
     result = dict(CHART_LAYOUT)
     for key in ("xaxis", "yaxis", "legend"):
         if key in overrides:
@@ -313,16 +302,10 @@ def kpi(value, label, delta=None, color="blue"):
 
 @st.cache_data(ttl=3600)
 def get_upcoming_stations(cities):
-    """
-    Sample/placeholder data for planned charging stations that are not
-    live yet. This is generated locally in app.py (not from data_engine.py)
-    since the engine currently only models operational stations.
-    Swap this out for a real data source (DB / API / CSV) when available.
-    """
     rng = np.random.default_rng(42)
     names = ["Metro Plaza Hub", "Highway Junction Station", "Tech Park Charging Bay",
-              "Riverside Fast-Charge Point", "Central Mall Supercharger", "Airport Connector Hub",
-              "Innovation District EV Point", "Greenfield Transit Station"]
+             "Riverside Fast-Charge Point", "Central Mall Supercharger", "Airport Connector Hub",
+             "Innovation District EV Point", "Greenfield Transit Station"]
     port_types = ["Level 2", "DC Fast", "Supercharger"]
     statuses = ["Under Construction", "Permitting", "Site Survey", "Equipment Ordered"]
 
@@ -470,10 +453,10 @@ if not city_filter:
 if not port_type_filter:
     port_type_filter = ["Level 2", "DC Fast", "Supercharger"]
 
-# ── Load data ──────────────────────────────────────────────────────────────────
+# ── Load data (FIXED: type normalization for cache boundaries) ─────────────────
 @st.cache_data(ttl=30)
 def load_data(cities, port_types, days):
-    return engine.get_all_data(cities, port_types, days)
+    return engine.get_all_data(tuple(cities), tuple(port_types), int(days))
 
 data = load_data(tuple(city_filter), tuple(port_type_filter), date_range)
 
@@ -584,7 +567,6 @@ if page == "Dashboard":
         ))
         fig_trend.update_layout(**chart_layout(
             height=280,
-            # FIX: use rgba(0,0,0,0) instead of the invalid "transparent" string
             yaxis2=dict(overlaying="y", side="right", gridcolor=TRANSPARENT, linecolor=TRANSPARENT, tickfont=dict(size=10, color="#00e676")),
             legend=dict(orientation="h", y=1.1, font=dict(size=10)),
         ))
@@ -874,7 +856,6 @@ elif page == "Trends and Forecasts":
         colorscale=[[0,"#071320"],[0.4,"#0d3b6e"],[0.7,"#0096ff"],[1,"#00d4ff"]],
         hovertemplate="<b>%{y}, %{x}</b><br>%{z:,.0f} kWh<extra></extra>",
         showscale=True,
-        # FIX: outlinecolor must be a real color value, not the string "transparent"
         colorbar=dict(tickfont=dict(color="#c3d4e8"), outlinecolor=TRANSPARENT),
     ))
     fig_heat.update_layout(**chart_layout(height=280))
