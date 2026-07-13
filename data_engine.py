@@ -134,9 +134,9 @@ class ChargeGridDataEngine:
         df_city_kw = df_stations.groupby("city")["kw_today"].sum().reset_index().rename(columns={"kw_today": "kw"})
         df_city_kw = df_city_kw.sort_values(by="kw", ascending=False)
         
-        # 6. Dynamic Event Alert Engine Modeling
+        # 6. Dynamic Event Alert Engine Modeling (FIXED: replaced .take() with safe slicing)
         alerts = []
-        critical_stations = df_stations[df_stations["status"] == "Error"].take(range(3), is_axis=False)
+        critical_stations = df_stations[df_stations["status"] == "Error"][:3]
         for _, row in critical_stations.iterrows():
             alerts.append({
                 "level": "critical",
@@ -145,7 +145,7 @@ class ChargeGridDataEngine:
                 "time": (current_time - timedelta(minutes=int(rng.integers(5, 45)))).strftime("%H:%M")
             })
             
-        warning_stations = df_stations[df_stations["status"] == "Offline"].take(range(3), is_axis=False)
+        warning_stations = df_stations[df_stations["status"] == "Offline"][:3]
         for _, row in warning_stations.iterrows():
             alerts.append({
                 "level": "warning",
@@ -245,16 +245,14 @@ class ChargeGridDataEngine:
 
         # 11. Predictive Forecast Demand Array
         forecast_rows = []
-        # Append historical references first
         for _, r in df_trend.iterrows():
             forecast_rows.append({"date": r["date"], "kw": r["kw"], "lower": r["kw"], "upper": r["kw"], "type": "historical"})
             
-        # Append 7-day algorithmic extension
         last_date = current_time.date()
         for i in range(1, 8):
             f_date = last_date + timedelta(days=i)
             w_factor = 1.25 if f_date.weekday() >= 5 else 0.95
-            predicted_value = base_kw_per_day * w_factor * rng.uniform(1.02, 1.08) # Models a modest network growth trajectory
+            predicted_value = base_kw_per_day * w_factor * rng.uniform(1.02, 1.08)
             
             forecast_rows.append({
                 "date": f_date.strftime("%Y-%m-%d"),
@@ -284,7 +282,6 @@ class ChargeGridDataEngine:
             })
         df_duration_city = pd.DataFrame(duration_by_city)
 
-        # Final Compiled Data Frame State Package Structure
         today_kw_total = df_trend["kw"].iloc[-1]
         today_rev_total = df_revenue_type["revenue"].sum()
 
